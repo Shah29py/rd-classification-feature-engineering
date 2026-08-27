@@ -1,16 +1,17 @@
 # Case 7 — Feature Catalog
 
-> Этот файл содержит **текущее состояние feature discovery**, а не историю всех промежуточных гипотез.
-> История исследований и отвергнутых гипотез находится в `research_log.md`.
+> Этот файл содержит **актуальное состояние feature discovery** и не является полной историей экспериментов. История гипотез, ошибок, проверок и изменения методологии находится в `research_log.md`.
+>
+> **Важно:** `Candidate` не означает, что признак уже доказал качество в production. До Block 4 итоговый статус `Validated` не присваивается.
 
 ## Статусы
 
-- `Candidate` — потенциально полезный признак, требует Feature Evaluation.
-- `Validated` — статистически подтверждённая полезность после Block 4.
-- `Rejected` — исследован, но не показал достаточной разделяющей способности или является redundant.
-- `To investigate` — направление ещё недостаточно исследовано.
+- **Candidate** — есть содержательный сигнал и достаточно evidence, чтобы передать признак в Feature Evaluation.
+- **Validated** — признак прошёл системную проверку после Block 4: coverage, specificity, stability и target vs OTHER.
+- **Rejected** — исследован и не показал достаточной самостоятельной ценности либо является redundant/confounded.
+- **To investigate** — направление интересно, но данных пока недостаточно.
 
-Дополнительно можно использовать **Priority: High / Medium / Low** как исследовательский приоритет. Priority не равен финальному статусу.
+**Priority** (`High / Medium / Low`) — исследовательский приоритет, а не итоговый статус.
 
 ---
 
@@ -23,21 +24,32 @@
 **Source:** `rd_data → product.idObjectType`  
 **Type:** categorical
 
+### Наблюдения
+
 Основные значения:
-- `Серийный выпуск`
-- `Партия`
-- `Единичное изделие`
+- `Серийный выпуск`;
+- `Партия`;
+- `Единичное изделие`.
 
-Наблюдения:
-- TG4: 97.59% серийный выпуск, 2.39% партия;
-- TG35: 82.37% серийный выпуск, 1.15% партия, 16.47% нет данных;
-- TG43: 94.78% серийный выпуск, 4.30% партия.
+В matched target sample:
 
-После контроля `rd_type` часть различий сохраняется, но признак не выглядит столь сильным, как TNVED.
+| TG | Серийный выпуск | Партия | Единичное изделие | Нет данных |
+|---|---:|---:|---:|---:|
+| TG4 | 97.59% | 2.39% | 0.03% | ~0% |
+| TG35 | 82.37% | 1.15% | 0.01% | 16.47% |
+| TG43 | 94.78% | 4.30% | 0.02% | 0.90% |
 
-**Ограничение:** для `СГР` отсутствие значения практически определяется структурой типа РД.
+После контроля `rd_type` для `ДС`:
+- TG35: 98.61% серийный выпуск, 1.38% партия;
+- TG43: 95.63% серийный выпуск, 4.35% партия.
 
-**Next:** при необходимости оценить как secondary structural feature.
+### Интерпретация
+
+Различия есть, но они заметно слабее TNVED. Для `СГР` отсутствие значения в значительной степени определяется структурой типа РД.
+
+### Next
+
+Оставить как secondary structured feature и оценить в Block 4. Не использовать отсутствие значения как отдельное TG35-правило без контроля `rd_type`.
 
 ---
 
@@ -45,114 +57,127 @@
 
 **Status:** Candidate  
 **Priority:** High  
-**Source:** `rd_data → product.tnved`  
-**Type:** categorical / multi-value / hierarchical code
+**Evidence:** statistical + domain-supported
 
-### Coverage
+**Source:** `rd_data → product.tnved`  
+**Type:** multi-value categorical / hierarchical code
+
+### Структура
 
 - хотя бы один TNVED есть у **86.73%** matched документов;
 - 71 381 документов имеют один код;
 - 2 211 — два;
 - 687 — три;
-- встречаются списки до 279 кодов;
-- основная масса отдельных кодов — 10-значные;
-- встречаются 2-, 4-, 6- и 9-значные значения.
+- встречаются длинные списки до 279 кодов;
+- отдельные значения имеют длину 2, 4, 6, 9 и 10 символов;
+- основная масса кодов — 10-значные.
 
-Документ рассматривается как множество TNVED-кодов и их префиксов, а не как одно значение.
+Один документ представляется как множество TNVED-кодов и их префиксов. Большие списки кодов не признавались автоматически ошибочными: по проверенным примерам это реальные наборы товарных кодов.
 
-### High-priority candidates
+### Основные candidate anchors
 
-#### P2.1 — `has_tnved_3303`
+| Feature | Support | Coverage основной TG | Purity внутри target TG | Target |
+|---|---:|---:|---:|---|
+| `has_tnved_3303` | 3 848 | ~97.0% | ~99.2% | TG4 |
+| `has_tnved_3304` | 28 659 | ~41.8% | ~99.8% | TG35 |
+| `has_tnved_3305` | 12 318 | ~18.0% | ~100% | TG35 |
+| `has_tnved_3401` | 8 482 | ~12.4% | ~99.8% | TG35 |
+| `has_tnved_2710` | 8 451 | ~60.1% | ~100% | TG43 |
+| `has_tnved_3403` | 5 703 | ~40.5% | ~100% | TG43 |
 
-**Status:** Candidate  
-**Priority:** High
+### Domain validation
 
-- Support: 3 848 документов;
-- Coverage TG4: ≈97.0%;
-- Purity среди target TG: ≈99.2%.
+Проверка по `TG_Definitions.xlsx` подтвердила:
 
-Интерпретация: очень сильный candidate для TG4.
+| TNVED-4 | Категория Definitions |
+|---|---|
+| `3303` | Парфимерия |
+| `3304` | Косметика |
+| `3305` | Косметика |
+| `3401` | Косметика |
+| `2710` | Моторные масла |
+| `3403` | Моторные масла |
 
-#### P2.2 — `has_tnved_3304`
+### Additional TG35 candidates
 
-**Status:** Candidate  
-**Priority:** High
+В residual TG35 были обнаружены дополнительные статистически сильные префиксы:
 
-- Support: 28 659;
-- Coverage TG35: ≈41.8%;
-- Purity среди target TG: ≈99.8%.
+- `3306`;
+- `3307`;
+- `3402`;
+- `3808`.
 
-#### P2.3 — `has_tnved_3305`
+`3306`, `3307` и `3402` также присутствуют в `TG_Definitions.xlsx` в категории `Косметика`. Для `3808` прямого соответствия в Definitions не найдено, поэтому он классифицируется как **statistical-only candidate**, а не как domain-confirmed anchor.
 
-**Status:** Candidate  
-**Priority:** High
+### Coverage analysis
 
-- Support: 12 318;
-- Coverage TG35: ≈18.0%;
-- Purity среди target TG: ≈100%.
+Исходные anchors `3304/3305/3401` покрывали около **72.0%** TG35.
 
-#### P2.4 — `has_tnved_3401`
+Добавление `3306/3307/3402/3808` повысило TG35 coverage до **82.59%** и оставило **11 900** residual TG35 документов.
 
-**Status:** Candidate  
-**Priority:** High
+Без `3808` coverage составлял **81.05%**, поэтому `3808` даёт заметный дополнительный coverage, но требует более осторожной интерпретации.
 
-- Support: 8 482;
-- Coverage TG35: ≈12.4%;
-- Purity среди target TG: ≈99.8%.
+### Multi-anchor conflicts
 
-#### P2.5 — `has_tnved_2710`
+При document-level проверке найдено **20 документов**, где одновременно присутствуют anchors для двух target TG. Большинство конфликтов относятся к TG4/TG35. Ручная проверка показала, что в таких РД действительно встречаются несколько TNVED-кодов и товары из нескольких товарных областей.
 
-**Status:** Candidate  
-**Priority:** High
+Следовательно, TNVED anchors — это **evidence features**, а не взаимоисключающие правила.
 
-- Support: 8 451;
-- Coverage TG43: ≈60.1%;
-- Purity среди target TG: ≈100%.
+### Ограничения
 
-#### P2.6 — `has_tnved_3403`
+`Purity` рассчитана только внутри matched target sample 4/35/43. Это не production Precision: полный `OTHER`-пул ещё не прошёл системную Feature Evaluation.
 
-**Status:** Candidate  
-**Priority:** High
+### Next
 
-- Support: 5 703;
-- Coverage TG43: ≈40.5%;
-- Purity среди target TG: ≈100%.
-
-### Important limitation
-
-Purity рассчитана внутри текущей matched target-выборки 4/35/43. Она **не является production Precision**, поскольку полная выборка OTHER пока не добавлена.
-
-### Required validation
-
-- проверить коды по `TG_Definitions.xlsx`;
-- проверить stability;
-- проверить target vs OTHER;
-- оценить взаимодействия нескольких TNVED-признаков;
-- определить, нужны ли уровни 2/4/6/10 знаков.
+- проверить candidate anchors против `OTHER`;
+- проверить stability на train/validation;
+- оценить multi-label behavior;
+- решить, какие уровни иерархии (`2/4/6/10`) нужны;
+- проверить взаимодействия с TR/declaration/text.
 
 ---
 
 ## P3 — `product_origin`
 
 **Status:** Candidate  
-**Priority:** Medium  
+**Priority:** Medium / Secondary  
 **Source:** `rd_data → product.idProductOrigin`  
 **Type:** categorical
 
-Примеры значений: Россия, Китай, Италия, Германия, Франция и др.
+### Coverage
 
-На текущем этапе закономерность по TG ещё не оценена системно.
+Заполнено примерно **75.0%** matched документов.
 
-**Next:** coverage, top-N по TG, reverse distribution и объединение редких категорий.
+Наиболее частые значения: Россия, Корея, Франция, Италия, Германия, Япония, Китай, Испания, Турция и др.
+
+### Наблюдения по TG
+
+Для TG4 заметно выше доля Франции и Испании. Для TG35 высока доля России и Кореи. Для TG43 заметнее Германия и Япония. Однако эти различия частично связаны с типом производителя.
+
+Дополнительная проверка `product_origin × manufacturer_type` показала сильную зависимость: для ряда стран (в частности Франции, Германии, Италии и Японии) более 93% документов имеют `manufacturer_type = Иностранное юридическое лицо`.
+
+### Интерпретация
+
+Признак несёт дополнительный сигнал, но часть информации избыточна относительно `manufacturer_type`.
+
+### Next
+
+Оставить как secondary candidate. В Block 4 оценивать с контролем `manufacturer_type` и support отдельных стран.
 
 ---
 
 ## P4 — `product_name` / `product_info`
 
 **Status:** To investigate  
-**Priority:** Medium
+**Priority:** Low / Secondary
 
-Текстовые поля продукта перспективны, но их исследование отложено до завершения структурных признаков и TNVED validation.
+В derived product fields coverage очень низкий:
+- `product_name` на TG35 residual заполнен примерно у 5.36%;
+- `product_info` реально непуст примерно у 2.0% residual.
+
+Поэтому эти поля не рассматриваются как основной residual source.
+
+При этом исходное `rd_data → nameProd` оказалось совершенно другим по наполненности и вынесено в отдельную text feature family T4.
 
 ---
 
@@ -164,13 +189,15 @@ Purity рассчитана внутри текущей matched target-выбо�
 **Priority:** Low  
 **Source:** `rd_data → applicant`
 
-В общей выборке сначала наблюдалось сильное различие между TG, но после контроля `rd_type` выяснилось, что наличие Applicant практически определяется типом РД:
+Первоначально наблюдалась сильная разница между TG, но после разбивки по `rd_type` выяснилось:
 
-- ДС → присутствует;
-- СС → присутствует;
-- СГР → отсутствует.
+- `ДС` → Applicant обычно присутствует;
+- `СС` → Applicant присутствует;
+- `СГР` → Applicant отсутствует.
 
-**Вывод:** как standalone TG-specific feature не подтверждён. Может быть структурным признаком типа РД.
+Следовательно, исходный TG signal в основном объясняется структурой типов РД.
+
+**Вывод:** как standalone TG-specific feature отклонён. Может быть структурным признаком типа РД.
 
 ---
 
@@ -193,13 +220,11 @@ Lift доли ИП относительно общей target-выборки:
 
 | TG | IP share | Lift |
 |---|---:|---:|
-| 35 | 8.32% | 1.02 |
-| 4 | 22.18% | 2.72 |
-| 43 | 3.36% | 0.41 |
+| TG35 | 8.32% | 1.02 |
+| TG4 | 22.18% | 2.72 |
+| TG43 | 3.36% | 0.41 |
 
-**Интерпретация:** потенциально полезен для TG4 и как отрицательный сигнал для TG43; для TG35 близок к базовому уровню.
-
-**Required validation:** support, stability, target vs OTHER, interaction with manufacturer type.
+Признак выглядит интересным для TG4 и как отрицательный сигнал для TG43, но пока не является validated feature.
 
 ---
 
@@ -207,11 +232,10 @@ Lift доли ИП относительно общей target-выборки:
 
 ## M1 — `manufacturer_present`
 
-**Status:** Rejected  
-**Priority:** Low  
-**Reason:** 100% совпадает с `applicant_present` на рабочем matched dataset.
+**Status:** Rejected as redundant  
+**Priority:** Low
 
-Отдельное использование не даёт новой информации.
+На рабочем matched dataset `manufacturer_present` на 100% совпадает с `applicant_present`, поэтому отдельной новой информации не добавляет.
 
 ---
 
@@ -222,14 +246,14 @@ Lift доли ИП относительно общей target-выборки:
 **Source:** `rd_data → manufacturer.type`  
 **Type:** categorical
 
-Основные значения:
-- `ИП`
-- `Иностранное юридическое лицо`
-- `Юридическое лицо`
-- `Физическое лицо`
-- пропуск
+Значения:
+- `Индивидуальный предприниматель`;
+- `Иностранное юридическое лицо`;
+- `Юридическое лицо`;
+- `Физическое лицо`;
+- пропуск.
 
-Для `ДС` наблюдается:
+Для `ДС` распределение TG при фиксированном manufacturer type:
 
 | Manufacturer type | TG35 | TG43 |
 |---|---:|---:|
@@ -239,11 +263,9 @@ Lift доли ИП относительно общей target-выборки:
 | Физическое лицо | 56.2% | 43.8% |
 | ЮЛ | 78.9% | 21.1% |
 
-Особенно интересна комбинация:
+Особенно интересна комбинация `rd_type == ДС AND manufacturer_type == ИП`.
 
-`rd_type == ДС AND manufacturer_type == ИП`.
-
-**Important:** эти значения — conditional distribution внутри matched target sample, а не финальный Precision модели.
+**Ограничение:** это conditional distribution внутри matched target sample, а не production Precision.
 
 ---
 
@@ -252,131 +274,248 @@ Lift доли ИП относительно общей target-выборки:
 **Status:** To investigate  
 **Priority:** High
 
-`applicant_type` и `manufacturer_type` не являются взаимозаменяемыми. Их совместное распределение различается, поэтому комбинации могут дать дополнительную информацию.
+Совместное распределение Applicant и Manufacturer различается, поэтому interaction может дать дополнительный сигнал.
 
-**Next:** проверить support и conditional distribution для комбинаций, особенно внутри `ДС`.
+**Next:** проверить support и conditional distributions, прежде всего внутри `ДС`.
 
 ---
 
-# 4. Text
+# 4. Technical Regulations
 
-## T1 — perfume keyword / phrase features
+## R1 — `tech_reg_codes`
+
+**Status:** Candidate  
+**Priority:** High  
+**Source:** `rd_data → techRegulations`  
+**Type:** multi-value categorical
+
+### Coverage
+
+`techRegulations` заполнен примерно у **81.5%** matched RD. После выделения идентификаторов регламентов:
+
+- `ТР ТС 009/2011` — support ≈56 175 документов; TG35 ≈93.1%, TG4 ≈6.9%; coverage TG35 ≈76.6%, TG4 ≈98.1% внутри текущей target sample;
+- `ТР ТС 030/2012` — support ≈13 508; TG43 ≈99.9%; coverage TG43 ≈96.0%.
+
+`ТР ТС 009/2011` отражает широкую парфюмерно-косметическую область, поэтому сам по себе не является идеальным TG4/TG35 separator. Комбинация `TR009 + TNVED` выглядит перспективнее.
+
+Другие регламенты имеют значительно меньший support и рассматриваются как secondary candidates.
+
+**Ограничение:** цифры получены внутри matched target sample; полный target vs OTHER ещё не выполнен.
+
+---
+
+# 5. Declaration / Certificate
+
+## D1 — `declaration.idDeclScheme`
+
+**Status:** Candidate  
+**Priority:** High  
+**Evidence:** strong statistical
+
+Основные значения:
+
+| TG | Основной сигнал |
+|---|---|
+| TG4 | `3д` ≈96.0% |
+| TG35 | `3д` ≈74.5%, `6д` ≈5.6% |
+| TG43 | `2д` ≈93.3%, `4д` ≈3.1% |
+
+Reverse distribution:
+- `1д` → ~92.3% TG43;
+- `2д` → ~71.5% TG43;
+- `3д` → ~92.8% TG35;
+- `4д` → ~72.6% TG35;
+- `6д` → ~98.8% TG35.
+
+`3д` нельзя использовать как самостоятельное TG4 rule, поскольку схема одновременно характерна для TG4 и TG35.
+
+Проверка внутри `ДС` показывает, что схема сохраняет различия между TG35 и TG43, поэтому сигнал не объясняется только `rd_type`.
+
+### Additional candidates
+
+- `declaration.object_nonempty`;
+- `declaration.idDeclType`;
+- `declaration.duration_days`;
+- производные признаки формата `declaration.number`.
+
+### Certificate
+
+По дополнительному исследованию certificate support очень мал:
+- TG4: 0 заполненных документов;
+- TG35: 267 (~0.39% matched TG35);
+- TG43: 22 (~0.16%).
+
+Поэтому `certificate` не считается надёжным общим feature family. `issueBasis` ещё слабее и для общего классификатора практически бесполезен.
+
+---
+
+# 6. Text
+
+## T1 — Парфюмерные keywords / phrases
+
+**Status:** Candidate  
+**Priority:** Medium
+
+Примеры: `духи`, `одеколон`, `туалетная вода`, `парфюмерная вода`, `perfume`, `parfum`.
+
+Standalone keyword approach имеет низкий support и не должен превращаться в жёсткие правила без проверки контекста.
+
+---
+
+## T2 — Косметические keywords / phrases
+
+**Status:** Candidate  
+**Priority:** Medium
+
+Примеры: `крем`, `шампунь`, `лосьон`, `маска`, `бальзам`.
+
+Известный риск: отдельное слово `крем` может встречаться вне косметики. Поэтому контекст и n-grams предпочтительнее одиночного keyword rule.
+
+---
+
+## T3 — Motor-oil textual patterns
 
 **Status:** Candidate  
 **Priority:** Medium
 
 Примеры:
-- `духи`
-- `одеколон`
-- `туалетная вода`
-- `парфюмерная вода`
-- `perfume`
-- `parfum`
+- `моторное масло`;
+- `масло моторное`;
+- `API`, `SAE`;
+- `5W`, `10W`;
+- `ACEA`;
+- допуски производителей (`VW`, `MB`, `Renault` и др.).
 
-Первичная проверка показала низкое количество совпадений по отдельным словам, поэтому одиночные keywords не считаются доказанными сильными признаками.
-
-**Next:** контекст, морфология, n-grams, phrase patterns, false positives.
-
-## T2 — cosmetics keyword / phrase features
-
-**Status:** Candidate  
-**Priority:** Medium
-
-Примеры: `крем`, `шампун`, `лосьон`, `маска`, `бальзам`.
-
-Важный риск: слово `крем` встречалось и вне косметики, например в названиях пищевых продуктов.
-
-**Next:** контекст и комбинации, а не standalone keyword.
-
-## T3 — motor oil specification features
-
-**Status:** Candidate  
-**Priority:** Medium
-
-Примеры:
-- `моторное масло`
-- `масло моторное`
-- `API`
-- `SAE`
-- `5W`, `10W`
-- `ACEA`
-- допуски `VW`, `MB`, `Renault` и др.
-
-Первичная проверка отдельных слов дала мало совпадений. Нужен анализ паттернов и комбинаций.
+Нужна проверка support и false positives.
 
 ---
 
-# 5. Structural / interaction candidates
+## T4 — `nameProd` lexical feature family
 
-## S1 — `json_field_presence`
+**Status:** Candidate  
+**Priority:** High for residual TG35  
+**Source:** `rd_data → nameProd`  
+**Type:** text / lexical / n-gram
 
-**Status:** To investigate
+### Coverage
 
-Идея: presence/absence структурированных полей может быть информативна. Однако Applicant/Manufacturer показали, что часть таких признаков является proxy для `rd_type`, поэтому каждый field-presence candidate нужно проверять на confounders.
+В полной matched target sample `nameProd` заполнен крайне неравномерно:
+- TG4 — практически отсутствует / 0% в проверке;
+- TG35 — ≈16.46%;
+- TG43 — ≈0.90%.
 
-## S2 — `json_structure_pattern`
+Это означает, что `nameProd` не является универсальным текстовым полем для всех трёх TG. Однако на **residual TG35** после TNVED anchors он заполнен примерно у **94.56%** документов, поэтому является очень перспективным локальным источником признаков.
 
-**Status:** To investigate
+### Наблюдение residual
 
-Комбинации присутствующих полей могут быть характерны для отдельных типов РД и TG, но их нужно проверять, чтобы не получить proxy для `rd_type`.
+В residual встречаются информативные товарные конструкции, например:
+- `мытья посуды`;
+- `бытовой химии`;
+- `окрашивания волос`;
+- `крем краска`;
+- `интимной гигиены`;
+- `зубная паста`;
+- `детский шампунь`;
+- `парфюмерно косметическая`;
+- `жидкое мыло`;
+- `осветления волос`.
+
+### Lexical candidate search
+
+На train выделялись unigram и real-bigram кандидаты. При построении биграмм stop words удаляются **после сохранения исходного порядка**, чтобы не создавать искусственные фразы.
+
+Первичный exploratory набор из 30 unigram + 30 bigram кандидатов покрывал значительную часть residual TG35. Более ранняя оценка на тех же данных показала высокое покрытие, но эта цифра не рассматривается как итоговое качество из-за selection bias.
+
+### Validation protocol
+
+Важная методологическая поправка: validation должен делиться **по всем target-документам до фильтрации по `nameProd`**. Иначе возникает selection bias: validation превращается в подвыборку документов с заполненным текстом и может иметь другое распределение TNVED.
+
+В cleaned `02_feature_discovery.ipynb` split выполняется на document IDs всех target TG, после чего lexical candidates выбираются только на train и проверяются на validation.
+
+**Текущий статус:** promising candidate family, но ещё не `Validated`.
+
+### Next
+
+- завершить корректную residual validation;
+- проверить word + character n-grams;
+- оценить false positives на TG43 и особенно target vs OTHER;
+- проверить, какой вклад даёт text layer поверх TNVED.
 
 ---
 
-# 6. Правило добавления новых features
+# 7. Structural / interaction candidates
 
-Для каждого нового кандидата фиксируем:
+## S1 — JSON field presence
+
+**Status:** To investigate
+
+Presence/absence структурированных полей может быть полезен, но некоторые такие признаки являются proxy для `rd_type`. Каждый candidate требует confounder check.
+
+## S2 — JSON structure patterns
+
+**Status:** To investigate
+
+Комбинации присутствующих/непустых полей могут быть полезны как derived features. Особый интерес представляют комбинации Product + Declaration + Manufacturer.
+
+## S3 — `anchor_conflict`
+
+**Status:** To investigate  
+**Priority:** Medium
+
+Обобщённый бинарный признак «у документа есть anchors нескольких target TG одновременно» потенциально отражает multi-label/ambiguous cases. Сейчас обнаружено 20 таких документов в TNVED anchor audit. Признак не должен использоваться как самостоятельный target rule, но может быть полезен для обработки неоднозначных случаев.
+
+---
+
+# 8. `tg_ids`
+
+**Status:** Diagnostic only / weak-label source  
+**Not a model feature**
+
+Для residual TG35 (`11 900` документов):
+
+- `35` присутствует в `tg_ids` у **96.55%**;
+- `4` или `43` присутствует у **24.12%**;
+- хотя бы одна non-target TG присутствует у **15.77%**.
+
+Это подтверждает две вещи:
+
+1. residual TG35 в целом не выглядит массовой ошибкой Truth;
+2. multi-TG структура реальна, а `tg_ids` может содержать дополнительные noisy labels.
+
+`tg_ids` не используется как feature из-за риска leakage и потому, что эксперт явно предупреждал о noisy nature этого поля.
+
+---
+
+# 9. Current priority
+
+1. Завершить корректную validation TNVED + `nameProd` residual pipeline.
+2. Проверить основные TNVED anchors против `OTHER`.
+3. Провести системную Feature Evaluation для TNVED / TR / Declaration.
+4. Проверить `nameProd` через word + character n-grams.
+5. Исследовать interactions сильных структурных признаков.
+6. Сформировать final target vs OTHER evaluation.
+7. Только после этого присваивать `Validated`.
+
+---
+
+# 10. Главный принцип каталога
 
 ```text
-## Feature X
-
-Source:
-Type:
-Status:
-Priority:
-
-Observation:
-Support:
-Coverage:
-TG 4:
-TG 35:
-TG 43:
-Specificity:
-Confounders:
-OTHER:
-Limitations:
-Next validation:
-```
-
-Главный принцип каталога:
-
-```text
-идея
-  ↓
-наблюдение
-  ↓
-статистика
-  ↓
-сравнение TG
-  ↓
-confounder check
-  ↓
+Observation
+    ↓
+Statistic
+    ↓
+Comparison by TG
+    ↓
+Confounder check
+    ↓
 Candidate
-  ↓
-Feature Evaluation
-  ↓
+    ↓
+Train/Validation evaluation
+    ↓
+Target vs OTHER
+    ↓
 Validated / Rejected
 ```
 
----
-
-# 7. Текущий приоритет
-
-1. **TNVED definitions validation** по `TG_Definitions.xlsx`.
-2. Проверка TNVED-кандидатов против `OTHER`.
-3. `product.idProductOrigin`.
-4. Certificate / Declaration.
-5. Текстовые признаки.
-6. Комбинации сильных кандидатов.
-7. Block 4 — системная Feature Evaluation.
-
-До завершения Block 4 никакой candidate feature не считается окончательно validated.
+**Ни один текущий Candidate не считается окончательно validated до Block 4.**
