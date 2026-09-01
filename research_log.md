@@ -29,14 +29,15 @@
 - [x] Блок 1. Data Understanding / EDA
 - [x] Блок 2. RD ↔ Truth и анализ разметки
 - [x] Блок 3. Основной Feature Discovery для Product / Applicant / Manufacturer / TNVED / TR / Declaration / Text candidates
-- [ ] Блок 4. Feature Evaluation
-  - [ ] Coverage
-  - [ ] Specificity / discriminative power
-  - [ ] Stability
-  - [ ] Target vs OTHER
-  - [ ] Interactions
-  - [ ] Final feature catalog
-- [ ] Блок 5. Optional ML
+- [~] Блок 4. Feature Evaluation — частично выполнен в v4
+  - [x] Coverage / linkage audit для target TG
+  - [x] Stability split для `3808`
+  - [x] Validation / test model evaluation
+  - [x] Candidate-vs-`tg_ids` baseline comparison
+  - [ ] Полный standalone target-vs-OTHER audit отдельных features
+  - [ ] Полный interaction analysis отдельных feature families
+  - [x] Feature catalog обновлён до состояния v4
+- [x] Блок 5. Optional ML — strict v4 pipeline выполнен для TG35/TG43
 - [ ] Блок 6. Финальная презентация
 
 ---
@@ -613,15 +614,164 @@ Cleaned `02_feature_discovery.ipynb` пересобран так, чтобы:
 
 ---
 
-# 18. Следующий этап — Block 4
+# 18. Исторический план Block 4
 
-Приоритет:
+Этот раздел отражает исходный план на момент до завершения v4. Фактическое состояние и результаты v4 приведены ниже и имеют приоритет.
 
-1. корректно завершить train/validation pipeline для TNVED + text;
-2. провести target vs OTHER для ключевых features;
-3. оценить stability;
-4. оценить interactions;
-5. определить финальные feature families;
-6. сформировать validated / rejected statuses.
+# 19. v4 — Исправление TG4 linkage и воспроизводимый pipeline
 
-До завершения Block 4 никакой текущий Candidate не должен называться окончательно validated.
+## 19.1 Причина отдельной обработки TG4
+
+После повторной проверки исходного `truth_rd_data` установлено:
+
+- TG4: 547 truth rows после очистки, 424 уникальных `rd_number`;
+- `rd_type` для TG4 — `N/A`;
+- `rd_number` в TG4 содержит текстовые описания продукции, ГОСТы, даты и перечни товаров, а не канонический номер РД;
+- прямое сопоставление с `main.rd_documentnumber` дало **0 matched documents**;
+- консервативный поиск встроенных регистрационных номеров дал только несколько единичных совпадений и не дал оснований массово создавать TG4 labels.
+
+Поэтому в v4 TG4 имеет статус:
+
+```text
+unlinked_source_field
+```
+
+и участвует только в candidate / feature engineering. Supervised model, calibration, threshold и supervised metrics для TG4 не строятся.
+
+Это является исправлением предыдущего состояния документации, где TG4 ранее ошибочно выглядел как нормально linked target.
+
+## 19.2 Воспроизводимость v4
+
+В notebook зафиксированы:
+
+- `CACHE_VERSION = 4`;
+- отдельное пространство артефактов `v3_pandas/artifacts_v4`;
+- fingerprint входных файлов;
+- cache-validity check по версии и fingerprint.
+
+Финальный v4 cache:
+
+- **1 417 019 документов**;
+- `cache_version = 4`;
+- fingerprint совпадает с текущими входными данными.
+
+Финальные артефакты:
+
+```text
+prepared_documents.parquet
+solution_bundle.joblib
+report.json
+```
+
+## 19.3 Feature engineering v4
+
+В `GROUP_PREFIXES[35]` добавлен `3808`.
+
+Важно: `3808` не используется для создания ground truth и не является отдельным hard candidate gate. Он попадает в:
+
+```text
+3808...
+   ↓
+tnved_prefix_35
+   ↓
+structural model
+```
+
+## 19.4 Аудит `3808`
+
+На linked truth:
+
+- TG35 linked docs: **68 370**;
+- TG35 с `3808`-family: **1 055**;
+- coverage: **1.543%**;
+- linked docs с `3808`-family: **1 056**;
+- pure TG35: **1 054**;
+- observed purity: **99.81%**.
+
+Наиболее частый подкод:
+
+```text
+3808948000 — 686 linked docs
+из них 685 pure TG35
+observed purity ≈ 99.85%
+```
+
+Распределение по split:
+
+```text
+fit          ~0.75%
+calibration  ~0.80%
+validation   ~0.76%
+test         ~0.76%
+```
+
+Таким образом, `3808` — редкий, но высокоспецифичный statistical-only feature. На основании доступной linked truth его разумно оставить как feature; делать из него ground-truth rule или hard gate не следует.
+
+## 19.5 Strict v4 — модельный результат
+
+Для TG35 и TG43 выполнен полный strict pipeline:
+
+```text
+fit
+→ hard-negative mining
+→ calibration
+→ validation threshold / blend freeze
+→ test
+```
+
+Замороженные validation-параметры:
+
+| TG | Threshold | Text weight | Validation Recall | Wilson lower 95% |
+|---|---:|---:|---:|---:|
+| 35 | 0.033526 | 0.125 | 0.97245 | 0.97005 |
+| 43 | 0.032042 | 0.125 | 0.97551 | 0.97021 |
+
+Финальный strict test:
+
+| TG | Precision | Recall | F1 | PR-AUC | Baseline Precision |
+|---|---:|---:|---:|---:|---:|
+| 35 | 0.2212 | 0.9709 | 0.3603 | 0.5914 | 0.0515 |
+| 43 | 0.3463 | 0.9749 | 0.5111 | 0.7306 | 0.1345 |
+
+Обе strict-модели улучшили Precision относительно собственного `tg_ids` baseline при сохранении Recall ≥ 0.97.
+
+### Legacy benchmark
+
+Legacy-v1 acceptance criterion:
+
+```text
+recall >= 0.97
+precision > v1 precision
+f1 > v1 f1
+```
+
+Результат:
+
+| TG | Legacy Precision | Legacy Recall | Legacy F1 | Acceptance criterion |
+|---|---:|---:|---:|---|
+| 35 | 0.855 | 0.973 | 0.910 | PASS |
+| 43 | 0.972 | 0.968 | 0.970 | FAIL |
+
+TG43 не проходит критерий только потому, что Recall = 0.968 < 0.97.
+
+Важно: это не означает, что Legacy TG43 стал «хуже по всем метрикам». Его Precision и F1 выше V1; не выполнен именно формальный acceptance criterion из-за Recall.
+
+## 19.6 Ограничения и что не утверждается
+
+На текущем этапе нельзя утверждать:
+
+- что TG4 имеет валидные supervised metrics;
+- что отдельные features уже `Validated` против полного `OTHER`;
+- что `3808` доказанно увеличивает model quality на ablation without retraining;
+- что strict candidate/test evaluation является полной оценкой всего dataset без candidate-universe ограничения.
+
+Текущий корректный вывод:
+
+> v4 pipeline воспроизводимо обучен и протестирован для TG35/TG43; он заметно повышает Precision относительно `tg_ids` baseline при сохранении Recall около 97%, а TG4 корректно исключён из supervised оценки из-за дефекта исходного linkage.
+
+# 20. Следующий этап
+
+1. При необходимости выполнить настоящий ablation `v4 with 3808 / v4 without 3808` на одинаковых splits и seed.
+2. Провести standalone target-vs-OTHER evaluation ключевых feature families.
+3. После этого окончательно обновить статусы отдельных feature-кандидатов.
+4. Подготовить финальный handoff и материалы защиты.

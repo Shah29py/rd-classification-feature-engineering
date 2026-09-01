@@ -1,6 +1,6 @@
 # Case 7 — Feature Catalog
 
-> Этот файл содержит **актуальное состояние feature discovery** и не является полной историей экспериментов. История гипотез, ошибок, проверок и изменения методологии находится в `research_log.md`.
+> Этот файл содержит **актуальное состояние feature discovery и результаты v4 Feature Evaluation**. Полная история гипотез, ошибок, проверок и изменения методологии находится в `research_log.md`.
 >
 > **Важно:** `Candidate` не означает, что признак уже доказал качество в production. До Block 4 итоговый статус `Validated` не присваивается.
 
@@ -486,15 +486,36 @@ Presence/absence структурированных полей может быт
 
 ---
 
-# 9. Current priority
+# 9. Current status after v4 Feature Evaluation
 
-1. Завершить корректную validation TNVED + `nameProd` residual pipeline.
-2. Проверить основные TNVED anchors против `OTHER`.
-3. Провести системную Feature Evaluation для TNVED / TR / Declaration.
-4. Проверить `nameProd` через word + character n-grams.
-5. Исследовать interactions сильных структурных признаков.
-6. Сформировать final target vs OTHER evaluation.
-7. Только после этого присваивать `Validated`.
+## Подтверждено на уровне v4 pipeline
+
+- Для TG35 и TG43 выполнен document-level train → calibration → validation → test pipeline.
+- Blend и threshold выбирались только по validation.
+- На strict test обе модели улучшили Precision относительно собственного `tg_ids` baseline при Recall ≥ 0.97.
+- TG4 не получил supervised evaluation из-за дефекта исходного linkage (`unlinked_source_field`).
+- `3808` используется только как структурный feature через `tnved_prefix_35`; он не создаёт ground truth и не является отдельным hard candidate gate.
+
+## Аудит `3808`
+
+| Метрика | Значение |
+|---|---:|
+| Linked TG35 docs | 68 370 |
+| TG35 docs with 3808-family | 1 055 |
+| Coverage among linked TG35 | 1.543% |
+| Linked docs with 3808-family | 1 056 |
+| Pure TG35 among linked 3808 docs | 1 054 |
+| Observed purity | 99.81% |
+
+Распределение `3808` по `fit / calibration / validation / test` находится примерно в диапазоне 0.75–0.80%, без концентрации в одном split.
+
+Наиболее частый подкод среди linked документов — `3808948000`: 686 linked docs, из них 685 pure TG35, observed purity ≈99.85%.
+
+**Ограничение:** observed purity рассчитана только на документах с доступной linked truth и не является production Precision на полном `OTHER`-пуле.
+
+## Статус feature families
+
+`Validated` пока не присваивается отдельным feature-кандидатам только на основании текущей статистики. Для окончательной feature-level валидации остаётся standalone target-vs-OTHER evaluation и, при необходимости, ablation отдельных признаков.
 
 ---
 
@@ -518,4 +539,10 @@ Target vs OTHER
 Validated / Rejected
 ```
 
-**Ни один текущий Candidate не считается окончательно validated до Block 4.**
+**Важно:** успешный v4 model-level результат не означает автоматически, что каждый отдельный Candidate имеет статус `Validated`.
+
+## 11. Следующий этап
+
+1. При необходимости выполнить настоящий ablation `v4 with 3808 / v4 without 3808`.
+2. Провести standalone target-vs-OTHER evaluation ключевых feature families.
+3. После этого окончательно обновить статусы отдельных feature-кандидатов.

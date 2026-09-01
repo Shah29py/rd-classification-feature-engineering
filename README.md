@@ -64,3 +64,18 @@
 ```text
 3 603 517 строк
 4 столбца
+
+## Результаты v4
+
+Для TG35 и TG43 выполнен strict document-level pipeline с hard-negative mining, calibration и заморозкой threshold/blend по validation.
+
+| TG | Precision | Recall | F1 | PR-AUC |
+|---|---:|---:|---:|---:|
+| 35 | 0.2212 | 0.9709 | 0.3603 | 0.5914 |
+| 43 | 0.3463 | 0.9749 | 0.5111 | 0.7306 |
+
+Обе модели повысили Precision относительно собственного `tg_ids` baseline при Recall ≥ 0.97.
+
+TG4 в v4 не получил supervised metrics: исходный `truth` не удалось надёжно связать с каноническим `rd_documentnumber`, поэтому он оставлен candidate/feature-only.
+
+`3808` добавлен как feature `tnved_prefix_35`. На linked truth его coverage среди TG35 составляет 1.543%, а observed purity — 99.81%; это не production Precision полного OTHER-пула.
